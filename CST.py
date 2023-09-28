@@ -736,6 +736,7 @@ def state_measurement(rho, n_qubit, n_sample, string):
 
 from IPython.display import clear_output
 import os
+from tqdm import tqdm
 class ClassicalShadowTransformer(torch.nn.Module):
     ''' Classical shadow transformer.
     
@@ -844,7 +845,9 @@ class ClassicalShadowTransformer(torch.nn.Module):
         for pg in self.optimizer.param_groups:
             pg['lr'] = lr
         self.transformer.train()
-        for step in range(max_steps):
+        clear_output(wait=True)
+        print(self.path + '/' + self.file)
+        for step in tqdm(range(max_steps)):
             if step >= steps and self.can_stop(**kwargs):
                 break
             self.optimizer.zero_grad()
@@ -853,9 +856,8 @@ class ClassicalShadowTransformer(torch.nn.Module):
             loss.backward()
             self.optimizer.step()
             self.loss_history.append(loss.item())
-            clear_output(wait=True)
-            print(self.path + '/' + self.file)
-            print(f'{step:3d}: {loss.item():8.5f} {logprob.item():8.5f} {kld.item():8.5f} {self.transformer.repara.logvar.mean().item():8.5f}')
+
+            #print(f'{step:3d}: {loss.item():8.5f} {logprob.item():8.5f} {kld.item():8.5f} {self.transformer.repara.logvar.mean().item():8.5f}')
             if autosave!=0 and (step+1)%autosave == 0:
                 self.save()
         if autosave:
