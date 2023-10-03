@@ -2,6 +2,8 @@ import torch
 import numpy
 import math
 import qst
+import pickle #for importing the qiskit generated data
+
 
 class EncoderLayer(torch.nn.Module):
     ''' Self-attention encoder layer.
@@ -641,21 +643,73 @@ def ghz_shadow(n_qubit, n_sample):
         # print('sigma.shape',sigma.shape)
         bit = rho.copy().measure(sigma)[0]
         tok = sigma.tokenize()
-        print('tok.shape',tok.shape)
+        # print('tok.shape',tok.shape)
         obs.append(tok[:n_qubit,:n_qubit].diagonal())
         out.append((tok[:,-1]+bit)%2)
-        print('tok[:n_qubit,:n_qubit].diagonal()',tok[:n_qubit,:n_qubit].diagonal())
-        print('tok[:,-1]+bit)%2',(tok[:,-1]+bit)%2)
-    print('obs_before_tensor_',obs)
-    print('out_before_tensor_',out)
+    #     print('tok[:n_qubit,:n_qubit].diagonal()',tok[:n_qubit,:n_qubit].diagonal())
+    #     print('tok[:,-1]+bit)%2',(tok[:,-1]+bit)%2)
+    # print('obs_before_tensor_',obs)
+    # print('out_before_tensor_',out)
     
     obs = torch.tensor(numpy.stack(obs))
     out = torch.tensor(numpy.stack(out))
 
-    print('obs', obs)
-    print('out', out)
-    print('shadow', Shadow(obs, out))
+    # print('obs', obs)
+    # print('out', out)
+    # print('shadow', Shadow(obs, out))
     return Shadow(obs, out)
+
+# def ghz_shadow_qiskit_generated():
+#     ''' Collect classical shadow on GHZ state by importing qiskit generated data
+        
+#         Input:
+#         importing qiskit generated data
+        
+#         Output:
+#         shd: Shadow - classical shadow dataset '''
+        
+#     # Import the dictionary from the file
+#     with open('exported_variables.pkl', 'rb') as file:
+#         imported_variables = pickle.load(file)
+
+#     # Extract the variables from the imported dictionary
+#     obs_before_tensor_imported = imported_variables['obs_before_tensor']
+#     out_before_tensor_imported = imported_variables['out_before_tensor']
+        
+#     # rho = qst.ghz_state(n_qubit)
+#     # obs = []
+#     # out = []
+#     # for _ in range(n_sample):
+#     #     sigma = qst.random_pauli_state(n_qubit)
+#     #     # print('sigma',sigma)
+#     #     # print('sigma.shape',sigma.shape)
+#     #     bit = rho.copy().measure(sigma)[0]
+#     #     tok = sigma.tokenize()
+#     #     print('tok.shape',tok.shape)
+#     #     obs.append(tok[:n_qubit,:n_qubit].diagonal())
+#     #     out.append((tok[:,-1]+bit)%2)
+#     #     print('tok[:n_qubit,:n_qubit].diagonal()',tok[:n_qubit,:n_qubit].diagonal())
+#     #     print('tok[:,-1]+bit)%2',(tok[:,-1]+bit)%2)
+#     # print('obs_before_tensor_',obs)
+#     # print('out_before_tensor_',out)
+    
+#     obs = torch.tensor(numpy.stack(obs_before_tensor_imported))
+#     out = torch.tensor(numpy.stack(out_before_tensor_imported))
+
+#     # print('obs', obs)
+#     # print('out', out)
+#     # print('shadow', Shadow(obs, out))
+#     return Shadow(obs, out)
+
+# def ghz_shadow_from_obs_out(obs_before_tensor_imported, out_before_tensor_imported):
+#     obs = torch.tensor(numpy.stack(obs_before_tensor_imported))
+#     out = torch.tensor(numpy.stack(out_before_tensor_imported))
+
+#     # print('obs', obs)
+#     # print('out', out)
+#     # print('shadow', Shadow(obs, out))
+#     return Shadow(obs, out)
+
 
 # scramble shadow, add a random unitary layer before GHZ shadow
 def scrambleghz_shadow(n_qubit, n_sample):
