@@ -683,27 +683,81 @@ class Shadow():
 
             Output:
             shadow_map: torch.Tensor - R_{ij} matrix. '''
-        match_idx = 4 * \
-            self.obs.unsqueeze(
-                1) + paulis.unsqueeze(0)  # (n_sample, n_paulis, N)
-        match = torch.all(self.matching_tab.to(match_idx.device)[
-                          match_idx], -1)  # (n_sample, n_paulis)
-        del match_idx
-        gc.collect()
-        pauli_support = (paulis != 0)  # (n_pauli, N)
-        shadow_weight = (3**pauli_support.sum(-1)).unsqueeze(0)  # (n_pauli,)
-        # (n_sample, n_pauli, N)
-        match_support = match.unsqueeze(-1) * pauli_support.unsqueeze(0)
-        masked_outcome = self.out.unsqueeze(
-            1) * match_support  # (n_sample, n_pauli, N)
-        del match_support
-        masked_outcome = (1 - 2 * (masked_outcome.sum(-1) % 2)) * match  # (n_sample, n_pauli)
-        #masked_value = masked_outcome *   # (n_sample, n_pauli)
-        del match
-        gc.collect()
-        shadow_map = masked_outcome * \
-            shadow_weight  # (n_sample, n_pauli)
-        return shadow_map  # (n_sample, n_pauli)
+        
+        
+        
+        # PLAN A 
+        pauli_support = (paulis != 0).numpy()
+        filtering = numpy.array([0,0,0,0, 1,1,0,0, 1,0,1,0, 1,0,0,1])
+        #dummy_match = numpy.zeros((self.obs.shape[0], paulis.shape[0]), dtype=numpy.int16)
+        ##dummy_shadow_weight = numpy.zeros(paulis.shape[0], dtype=numpy.int16)
+        dummy_shadow_weight = 3**pauli_support.sum(axis=1, dtype=numpy.int16)
+        #for i, (perm, res) in tqdm(enumerate(zip(self.obs.numpy(), self.out.numpy()))):
+        #    for j, pauli in enumerate(paulis.numpy()):
+        #        filtered = numpy.all(filtering[(4 * perm + pauli)])
+        #        dummy_match[i, j] = (1 - 2 * ((filtered * pauli_support[j] * res).sum() % 2)) * filtered
+            
+        # PLAN B
+        # Work with numpy instead of torch
+        obs = self.obs.numpy()
+        out = self.out.numpy()
+        paulis = paulis.numpy()
+        
+        # Process the input data in blocks
+        BLOCK_SIZE = 6**5
+
+        dummy_match = None
+
+        def calcualte_block(obs, out, paulis):
+            
+            # Calculate 4 * perm + pauli for all combinations
+            indices = 4 * obs[:, None] + paulis
+            
+            # Create a filtering matrix based on indices
+            filtered = numpy.all(filtering[indices], axis=2)
+            
+            # Calculate the result using vectorized operations
+            intermediate_result = (filtered[:, :, None] * pauli_support * out[:, None, :]).sum(axis=2) % 2
+            return (1 - 2 * intermediate_result) * filtered    
+        
+        
+        iterations = obs.shape[0] // BLOCK_SIZE + 1 * ((obs.shape[0] % BLOCK_SIZE) != 0)
+
+        for block_number in range(iterations):
+            lower = block_number * BLOCK_SIZE
+            upper = numpy.min(numpy.array([(block_number+1) * BLOCK_SIZE, obs.shape[0]]))
+            
+            # Blocks to be processed
+            obs_block = obs[lower: upper]
+            out_block = out[lower: upper]
+            
+            if dummy_match is None:
+                dummy_match = calcualte_block(obs_block, out_block, paulis)
+            else:
+                dummy_match = numpy.vstack((dummy_match, calcualte_block(obs_block, out_block, paulis)))
+
+        return torch.from_numpy(dummy_match * dummy_shadow_weight)
+#        match_idx = 4 * \
+#            self.obs.unsqueeze(
+#                1) + paulis.unsqueeze(0)  # (n_sample, n_paulis, N)
+#        match = torch.all(self.matching_tab.to(match_idx.device)[
+#                          match_idx], -1)  # (n_sample, n_paulis)
+#        del match_idx
+#        gc.collect()
+#        pauli_support = (paulis != 0)  # (n_pauli, N)
+#        shadow_weight = (3**pauli_support.sum(-1)).unsqueeze(0)  # (n_pauli,)
+#        # (n_sample, n_pauli, N)
+#        match_support = match.unsqueeze(-1) * pauli_support.unsqueeze(0)
+#        masked_outcome = self.out.unsqueeze(
+#            1) * match_support  # (n_sample, n_pauli, N)
+#        del match_support
+#        masked_outcome = (1 - 2 * (masked_outcome.sum(-1) % 2)) * match  # (n_sample, n_pauli)
+#        #masked_value = masked_outcome *   # (n_sample, n_pauli)
+#        del match
+#        gc.collect()
+#        shadow_map = masked_outcome * \
+#            shadow_weight  # (n_sample, n_pauli)
+#        return shadow_map  # (n_sample, n_pauli)
 
 # collect shadow data
 
