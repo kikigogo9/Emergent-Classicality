@@ -659,6 +659,22 @@ def ghz_shadow(n_qubit, n_sample):
     # print('shadow', Shadow(obs, out))
     return Shadow(obs, out)
 
+def ghz_shadow_imported(nr_qubits, n_sample):
+    with open(f'data/exported_qubits_{nr_qubits}_samples_{n_sample}.pkl', 'rb') as file:
+        loaded_variables = pickle.load(file)
+
+    # Now, you can access your variables like this:
+    obs_before_tensor = loaded_variables['obs_before_tensor']
+    out_before_tensor = loaded_variables['out_before_tensor']
+    
+    obs = torch.tensor(numpy.stack(obs_before_tensor))
+    out = torch.tensor(numpy.stack(out_before_tensor))
+
+    # print('obs', obs)
+    # print('out', out)
+    # print('shadow', Shadow(obs, out))
+    return Shadow(obs, out)
+
 # def ghz_shadow_qiskit_generated():
 #     ''' Collect classical shadow on GHZ state by importing qiskit generated data
         
