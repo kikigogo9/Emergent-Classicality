@@ -3,6 +3,8 @@ import numpy
 import math
 import qst
 import pickle #for importing the qiskit generated data
+from tqdm import tqdm
+
 
 
 class EncoderLayer(torch.nn.Module):
@@ -625,7 +627,7 @@ class Shadow():
         return shadow_map # (n_sample, n_pauli)
     
 # collect shadow data
-def ghz_shadow(n_qubit, n_sample):
+def ghz_shadow_old(n_qubit, n_sample):
     ''' Collect classical shadow on GHZ state by Pauli measurements
         
         Input:
@@ -660,6 +662,24 @@ def ghz_shadow(n_qubit, n_sample):
     return Shadow(obs, out)
 
 def ghz_shadow_imported(nr_qubits, n_sample):
+    with open(f'data/exported_qubits_{nr_qubits}_samples_{n_sample}.pkl', 'rb') as file:
+        loaded_variables = pickle.load(file)
+
+    # Now, you can access your variables like this:
+    obs_before_tensor = loaded_variables['obs_before_tensor']
+    out_before_tensor = loaded_variables['out_before_tensor']
+    
+    obs = torch.tensor(numpy.stack(obs_before_tensor))
+    out = torch.tensor(numpy.stack(out_before_tensor))
+
+    # print('obs', obs)
+    # print('out', out)
+    # print('shadow', Shadow(obs, out))
+    return Shadow(obs, out)
+
+
+#The following is exactly the same as ghz_shadow_imported, and just exists to make sure if the function would be called, it's the import one.
+def ghz_shadow(nr_qubits, n_sample):
     with open(f'data/exported_qubits_{nr_qubits}_samples_{n_sample}.pkl', 'rb') as file:
         loaded_variables = pickle.load(file)
 
@@ -832,6 +852,8 @@ class ClassicalShadowTransformer(torch.nn.Module):
         self.logbeta = logbeta       # log2 of hyperparameter beta
         self.state_name = state_name # name of the quantum state to learn
         self.loss_history = []
+        self.loaded_obs = None #Add these 2 to make sure I don't have to load as often
+        self.loaded_out = None
 
     @property
     def device(self):
@@ -850,8 +872,8 @@ class ClassicalShadowTransformer(torch.nn.Module):
     def file(self):
         # file name convention: [state_name]_N[n_qubit]_b[logbeta]
         return  f'{self.state_name}_N{self.n_qubit}_b{self.logbeta}'
-
-    def shadow(self, n_sample):
+    
+    def shadow_old(self, n_sample): #This was their original shadow function, but this didn't use (imported) qiskit generated data
         if self.state_name == 'GHZ':
             rho = qst.ghz_state(self.n_qubit)
         else:
@@ -864,9 +886,44 @@ class ClassicalShadowTransformer(torch.nn.Module):
             tok = sigma.tokenize()
             obs.append(tok[:self.n_qubit,:self.n_qubit].diagonal())
             out.append((tok[:,-1]+bit)%2)
+            
         obs = torch.tensor(numpy.stack(obs))
         out = torch.tensor(numpy.stack(out))
         return Shadow(obs, out)
+    
+    def shadow(self,obs_before_tensor,out_before_tensor): #This is Thijs' shadow function, which uses (imported) qiskit generated data
+        # if self.state_name == 'GHZ':
+        #     rho = qst.ghz_state(self.n_qubit)
+        # else:
+        #     raise NotImplementedError
+        indexes = numpy.random.choice(len(obs_before_tensor), self.dataset_size, replace=False)
+        # print(f'Progress: Analysing qubit {self.n_qubit}, currently checking logbeta value {self.logbeta}')
+        
+        obs = torch.tensor(numpy.stack(obs_before_tensor[indexes]))
+        out = torch.tensor(numpy.stack(out_before_tensor[indexes]))
+
+        # print('obs', obs)
+        # print('out', out)
+        # print('shadow', Shadow(obs, out))
+        return Shadow(obs, out)
+    
+    def shadow_wrong(self, n_sample):
+        if self.loaded_obs is None or self.loaded_out is None:
+            if self.state_name == 'GHZ':
+                rho = qst.ghz_state(self.n_qubit)
+            else:
+                raise NotImplementedError
+
+            with open(f'data/exported_qubits_{self.n_qubit}_samples_{n_sample}.pkl', 'rb') as file:
+                loaded_variables = pickle.load(file)
+
+            # Now, you can access your variables like this:
+            self.loaded_obs = torch.tensor(numpy.stack(loaded_variables['obs_before_tensor']))
+            self.loaded_out = torch.tensor(numpy.stack(loaded_variables['out_before_tensor']))
+
+        # print(f'Progress: Analysing qubit {self.n_qubit}, currently checking logbeta value {self.logbeta} with obs {self.loaded_obs}')
+
+        return Shadow(self.loaded_obs, self.loaded_out)
         
     def sample(self, n_sample, need_logprob=False):
         ''' Sample a batch of classical shadows.
@@ -922,22 +979,32 @@ class ClassicalShadowTransformer(torch.nn.Module):
             mean1 = losses[(-window//2):].mean()
             return abs(mean0 - mean1) < std/nsr
 
-    def optimize(self, steps, max_steps=1000, n_sample=1000, lr=0.0001, autosave=10, **kwargs):
+    def optimize(self, steps, max_steps=1000, n_sample=1000, lr=0.0001, autosave=10, dataset_size=100, **kwargs):
         for pg in self.optimizer.param_groups:
             pg['lr'] = lr
         self.transformer.train()
-        for step in range(max_steps):
+        self.n_sample = n_sample
+        self.dataset_size = dataset_size
+        with open(f'data/exported_qubits_{self.n_qubit}_samples_{n_sample}.pkl', 'rb') as file:
+            loaded_variables = pickle.load(file)
+            print('variables loaded')
+
+        # Now, you can access your variables like this:
+        obs_before_tensor = numpy.array(loaded_variables['obs_before_tensor'])
+        out_before_tensor = numpy.array(loaded_variables['out_before_tensor'])
+        
+        for step in tqdm(range(max_steps)):
             if step >= steps and self.can_stop(**kwargs):
                 break
             self.optimizer.zero_grad()
-            shadow = self.shadow(n_sample).to(self.device)
+            
+            shadow = self.shadow(obs_before_tensor,out_before_tensor).to(self.device)
             loss, logprob, kld = self.loss(shadow)
             loss.backward()
             self.optimizer.step()
             self.loss_history.append(loss.item())
-            clear_output(wait=True)
-            print(self.path + '/' + self.file)
-            print(f'{step:3d}: {loss.item():8.5f} {logprob.item():8.5f} {kld.item():8.5f} {self.transformer.repara.logvar.mean().item():8.5f}')
+            # clear_output(wait=True)
+            # print(f'{step:3d}: {loss.item():8.5f} {logprob.item():8.5f} {kld.item():8.5f} {self.transformer.repara.logvar.mean().item():8.5f} at {self.path}/{self.file}')
             if autosave!=0 and (step+1)%autosave == 0:
                 self.save()
         if autosave:
@@ -953,7 +1020,11 @@ class ClassicalShadowTransformer(torch.nn.Module):
     def load(self, filename=None):
         if filename is None:
             filename = self.path + '/' + self.file
+            # print('Self.path', self.path)
+            # print('Self.file', self.file)
         if os.path.exists(filename):
+            # filename = self.path + '/' + self.file
+            # print('Loading model from', filename,'self device', self.device)
             state_dict = torch.load(filename, map_location=self.device)
             self.transformer.load_state_dict(state_dict['model_state_dict'])
             self.optimizer.load_state_dict(state_dict['optimizer_state_dict'])
