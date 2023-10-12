@@ -699,12 +699,12 @@ class Shadow():
             
         # PLAN B
         # Work with numpy instead of torch
-        obs = self.obs.numpy()
-        out = self.out.numpy()
-        paulis = paulis.numpy()
+        obs = self.obs.numpy().astype(dtype=numpy.int16)
+        out = self.out.numpy().astype(dtype=numpy.int16)
+        paulis = paulis.numpy().astype(dtype=numpy.int16)
         
         # Process the input data in blocks
-        BLOCK_SIZE = 6**5
+        BLOCK_SIZE = 6**5 // 4
 
         dummy_match = None
 
@@ -880,7 +880,7 @@ def state_measurement(rho, n_qubit, n_sample, string):
     out = torch.tensor(numpy.stack(out))
     return Shadow(obs, out)
 
-
+import pickle
 class ClassicalShadowTransformer(torch.nn.Module):
     ''' Classical shadow transformer.
 
@@ -916,21 +916,14 @@ class ClassicalShadowTransformer(torch.nn.Module):
         # file name convention: [state_name]_N[n_qubit]_b[logbeta]
         return f'{self.state_name}_N{self.n_qubit}_b{self.logbeta}'
 
-    def shadow(self, n_sample):
-        if self.state_name == 'GHZ':
-            rho = qst.ghz_state(self.n_qubit)
-        else:
-            raise NotImplementedError
-        obs = []
-        out = []
-        for _ in range(n_sample):
-            sigma = qst.random_pauli_state(self.n_qubit)
-            bit = rho.copy().measure(sigma)[0]
-            tok = sigma.tokenize()
-            obs.append(tok[:self.n_qubit, :self.n_qubit].diagonal())
-            out.append((tok[:, -1]+bit) % 2)
-        obs = torch.tensor(numpy.stack(obs))
-        out = torch.tensor(numpy.stack(out))
+    def shadow(self, obs, out):
+        
+
+        
+
+
+        obs = torch.tensor(numpy.stack(obs[0]))
+        out = torch.tensor(numpy.stack(out[0]))
         return Shadow(obs, out)
 
     def sample(self, n_sample, need_logprob=False):
@@ -992,16 +985,35 @@ class ClassicalShadowTransformer(torch.nn.Module):
             mean1 = losses[(-window//2):].mean()
             return abs(mean0 - mean1) < std/nsr
 
-    def optimize(self, steps, max_steps=1000, n_sample=1000, lr=0.0001, autosave=10, **kwargs):
+    def optimize(self, steps, max_steps=1000, n_sample=1000, lr=0.0001, autosave=10, seed=42, **kwargs):
         for pg in self.optimizer.param_groups:
             pg['lr'] = lr
         self.transformer.train()
+
+        with open(f'data/exported_qubits_{self.n_qubit}_samples_{n_sample}.pkl', 'rb') as file:
+            data = pickle.load(file)
+        obs = numpy.array(data['obs_before_tensor'])
+        out = numpy.array(data['out_before_tensor'])
+
+        dataset_size = len(obs)
+
+        numpy.random.seed(seed)
+        shuffled_indexes = numpy.random.shuffle([*range(dataset_size)])
+
+        obs = obs[shuffled_indexes]
+        out = out[shuffled_indexes]
+        
         print(self.path + '/' + self.file)
         for step in tqdm(range(max_steps)):
             if step >= steps and self.can_stop(**kwargs):
                 break
+            start = step * n_sample % dataset_size
+            end = start + n_sample 
+            sample_obs = obs[:,start:end]
+            sample_out = out[:,start: end]
+
             self.optimizer.zero_grad()
-            shadow = self.shadow(n_sample).to(self.device)
+            shadow = self.shadow(sample_obs, sample_out).to(self.device)
             loss, logprob, kld = self.loss(shadow)
             loss.backward()
             self.optimizer.step()
