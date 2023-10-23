@@ -990,7 +990,7 @@ class ClassicalShadowTransformer(torch.nn.Module):
             pg['lr'] = lr
         self.transformer.train()
 
-        with open(f'data/exported_qubits_{self.n_qubit}_samples_{n_sample}.pkl', 'rb') as file:
+        with open(f'data/noise_backend_qubits_{self.n_qubit}_samples_{n_sample}.pkl', 'rb') as file:
             data = pickle.load(file)
         obs = numpy.array(data['obs_before_tensor'])
         out = numpy.array(data['out_before_tensor'])
@@ -1008,7 +1008,7 @@ class ClassicalShadowTransformer(torch.nn.Module):
             if step >= steps and self.can_stop(**kwargs):
                 break
             start = step * n_sample % dataset_size
-            end = start + n_sample 
+            end = start + n_sample
             sample_obs = obs[:,start:end]
             sample_out = out[:,start: end]
 
