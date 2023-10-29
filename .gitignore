@@ -1,4 +1,13 @@
 .ipynb_checkpoints
 runs/.DS_Store
 .DS_Store
-.env
+qst/__pycache__/__init__.cpython-38.pyc
+qst/__pycache__/circuit.cpython-38.pyc
+qst/__pycache__/device.cpython-38.pyc
+qst/__pycache__/paulialg.cpython-38.pyc
+qst/__pycache__/stabilizer.cpython-38.pyc
+qst/__pycache__/utils.cpython-38.pyc
+qst/utils.py
+__pycache__/CST.cpython-38.pyc
+model/CST_d64_h16_l1/*
+model/CST_d64_h16_l1/GHZ_N1_b-1

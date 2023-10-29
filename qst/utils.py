@@ -1,5 +1,4 @@
 import numpy
-from numba import njit
 
 '''Conventions:
 Binary represention of Pauli string. (arXiv:quant-ph/0406196)
@@ -14,7 +13,7 @@ Product of Pauli strings:
         sigma[g1] sigma[g2] = i^ipow(g1,g2) sigma[(g1+g2)%2]
 '''
 # ---- Pauli foundation ----
-@njit
+
 def front(g):
     '''Find the first nontrivial qubit in a Pauli string.
 
@@ -34,7 +33,7 @@ def front(g):
             break
     return i
 
-@njit
+
 def condense(g):
     '''Condense the Pauli string by taking collecting it in its support, returns
     a shorter string and the support.
@@ -54,7 +53,7 @@ def condense(g):
     qubits = numpy.arange(N)[mask]
     return g[numpy.repeat(mask, 2)], qubits
 
-@njit
+
 def p0(g):
     '''Bare phase factor due to x.z for a Pauli string.
 
@@ -70,7 +69,7 @@ def p0(g):
         p0 += g[2*i] * g[2*i+1]
     return p0 % 4
 
-@njit
+
 def acq(g1, g2):
     '''Calculate Pauli operator anticmuunation indicator.
 
@@ -88,7 +87,7 @@ def acq(g1, g2):
         acq += g1[2*i+1]*g2[2*i] - g1[2*i]*g2[2*i+1]
     return acq % 2
 
-@njit
+
 def ipow(g1, g2):
     '''Phase indicator for the product of two Pauli strings.
 
@@ -113,7 +112,7 @@ def ipow(g1, g2):
         ipow += g1z * g2x - g1x * g2z + 2*((gx//2) * gz + gx * (gz//2))
     return ipow % 4
 
-@njit
+
 def ps0(gs):
     '''Bare phase factor due to x.z for Pauli strings.
 
@@ -130,7 +129,7 @@ def ps0(gs):
             ps0[j] += gs[j,2*i] * gs[j,2*i+1]
     return ps0 % 4
 
-@njit
+
 def acq_mat(gs):
     '''Construct anticommutation indicator matrix for a set of Pauli strings.
 
@@ -149,7 +148,7 @@ def acq_mat(gs):
     mat = mat % 2
     return mat
 
-@njit
+
 def batch_dot(gs1, ps1, cs1, gs2, ps2, cs2):
     '''batch dot product of two Pauli polynomials
 
@@ -181,7 +180,7 @@ def batch_dot(gs1, ps1, cs1, gs2, ps2, cs2):
     return gs, ps, cs
 
 # ---- token related ----
-@njit
+
 def pauli_tokenize(gs, ps):
     '''Create a token of Pauli operators for learning tasks.
 
@@ -203,7 +202,7 @@ def pauli_tokenize(gs, ps):
     return ts
 
 # ---- combination and trasnformation ----
-@njit
+
 def pauli_combine(C, gs_in, ps_in): 
     '''Combine Pauli operators by operator product.
         (left multiplication)
@@ -228,7 +227,7 @@ def pauli_combine(C, gs_in, ps_in):
                 gs_out[j_out] = (gs_out[j_out] + gs_in[j_in])%2
     return gs_out, ps_out
 
-@njit
+
 def pauli_transform(gs_in, ps_in, gs_map, ps_map):
     '''Transform Pauli operators by Clifford map.
         (right multiplication)
@@ -247,7 +246,7 @@ def pauli_transform(gs_in, ps_in, gs_map, ps_map):
     return gs_out, ps_out
 
 # ---- clifford rotation ----
-@njit
+
 def clifford_rotate(g, p, gs, ps):
     '''Apply Clifford rotation to Pauli operators.
 
@@ -265,7 +264,7 @@ def clifford_rotate(g, p, gs, ps):
             gs[j] = (gs[j] + g)%2
     return gs, ps
 
-@njit
+
 def clifford_rotate_signless(g, gs):
     '''Apply Clifford rotation to Pauli strings without signs.
 
@@ -281,7 +280,7 @@ def clifford_rotate_signless(g, gs):
     return gs
 
 # ---- diagonalization ----
-@njit
+
 def pauli_is_onsite(g, i0=0):
     '''check if a Pauli string is localized on a qubit.
 
@@ -301,7 +300,7 @@ def pauli_is_onsite(g, i0=0):
             break
     return out
 
-@njit
+
 def pauli_diagonalize1(g1, i0 = 0):
     '''Find a series of Clifford roations to diagonalize a single Pauli string
     to qubit i0 as Z.
@@ -335,7 +334,7 @@ def pauli_diagonalize1(g1, i0 = 0):
         # now g1 has been transformed to Z0
     return gs
 
-@njit
+
 def pauli_diagonalize2(g1, g2, i0 = 0):
     '''Find a series of Clifford roations to diagonalize a pair of anticommuting
     Pauli strings to qubit i0 as Z and X (or Y).
@@ -383,7 +382,7 @@ def pauli_diagonalize2(g1, g2, i0 = 0):
     return gs, g1, g2
 
 # ---- random Clifford ---
-@njit
+
 def random_pair(N):
     '''Sample an anticommuting pair of random stabilizer and destabilizer.
 
@@ -405,7 +404,7 @@ def random_pair(N):
         g2[2*i+1] = (g2[2*i+1] + g1[2*i] + g1[2*i+1])%2
     return g1, g2
 
-@njit
+
 def random_pauli(N):
     '''Sample a random Pauli map.
 
@@ -453,7 +452,7 @@ def random_clifford(N):
     return random_clifford_(numpy.zeros((2*N,2*N), dtype=numpy.int_))
 
 # ---- map/state conversion ----
-@njit
+
 def map_to_state(gs_in, ps_in):
     '''Convert Clifford map to stabilizer state.
 
@@ -475,7 +474,7 @@ def map_to_state(gs_in, ps_in):
         ps_out[i] = ps_in[2*i+1]
     return gs_out, ps_out
 
-@njit
+
 def state_to_map(gs_in, ps_in):
     '''Convert stabilizer state to Clifford map.
 
@@ -498,7 +497,7 @@ def state_to_map(gs_in, ps_in):
     return gs_out, ps_out
 
 # ---- stabilizer related ----
-@njit
+
 def stabilizer_project(gs_stb, gs_obs, r):
     '''Project stabilizer tableau to a new stabilizer basis.
 
@@ -546,7 +545,7 @@ def stabilizer_project(gs_stb, gs_obs, r):
                     gs_stb[numpy.array([q,s])] = gs_stb[numpy.array([s,q])] # swap q,s
     return gs_stb, r
 
-@njit
+
 def stabilizer_measure(gs_stb, ps_stb, gs_obs, ps_obs, r):
     '''Measure Pauli operators on a stabilizer state.
 
@@ -619,7 +618,7 @@ def stabilizer_measure(gs_stb, ps_stb, gs_obs, ps_obs, r):
             out[k] = ((pa - ps_obs[k])%4)//2
     return gs_stb, ps_stb, r, out, log2prob
 
-@njit
+
 def stabilizer_expect(gs_stb, ps_stb, gs_obs, ps_obs, r):
     '''Evaluate the expectation values of Pauli operators on a stabilizer state.
 
@@ -655,7 +654,7 @@ def stabilizer_expect(gs_stb, ps_stb, gs_obs, ps_obs, r):
             xs[k] = (-1)**(((pa - ps_obs[k])%4)//2)
     return xs
 
-@njit
+
 def stabilizer_entropy(gs, mask):
     '''Entanglement entropy of the stabilizer state in a given region.
 
@@ -691,7 +690,7 @@ def stabilizer_entropy(gs, mask):
     return entropy
 
 # ---- Z2 linear algebra ----
-@njit
+
 def z2rank(mat):
     '''Calculate Z2 rank of a binary matrix.
 
@@ -729,7 +728,7 @@ def z2rank(mat):
     # col exhausted, last nonvanishing row indexed by r
     return r
 
-@njit
+
 def z2inv(mat):
     '''Calculate Z2 inversion of a binary matrix.'''
     assert mat.shape[0] == mat.shape[1] # assuming matrix is square
@@ -799,7 +798,7 @@ def binary_repr(ints, width = None):
     bins = numpy.unpackbits(ints.view(dtype=dt1)['bytes'], axis=-1, bitorder='little')
     return numpy.flip(bins, axis=-1)[...,-width:]
 
-@njit
+
 def aggregate(data_in, inds, l):
     '''Aggregate data (1d array) by unique inversion indices.
 
